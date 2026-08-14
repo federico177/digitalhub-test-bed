@@ -1,0 +1,218 @@
+# SPDX-FileCopyrightText: © 2025 DSLab - Fondazione Bruno Kessler
+#
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "core.fullname" . }}
+  labels:
+    {{- include "core.labels" . | nindent 4 }}
+  {{- $annotations := include "core.annotations" (dict "root" $ "resource" .Values.annotations.configmap) }}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
+data:
+  DH_NAME: {{ .Release.Name }}
+  DH_ENDPOINT: "{{ include "core.endpoint" . }}"
+  K8S_NAMESPACE: {{ .Release.Namespace }}
+  JDBC_PLATFORM: postgresql
+  JDBC_URL: {{ printf "%s%s:%s/%s" "jdbc:postgresql://" .Values.postgres.host .Values.postgres.port .Values.postgres.database }}
+  JDBC_DRIVER: org.postgresql.Driver
+{{- if not .Values.sts.enabled }}
+  DH_CONFIG_COMMON_SECRETS: {{ .Values.commonCredsSecret.secretName }}
+{{- end }}
+  DH_CONFIG_COMMON_MAPS: digitalhub-common-env
+  LOG_LEVEL: {{ .Values.global.logLevel }}
+  RUNTIME_DBT_IMAGE: {{ .Values.runtime.dbt.image }}:{{ .Values.runtime.dbt.tag }}
+  RUNTIME_HERA_IMAGE: {{ .Values.runtime.hera.image }}:{{ .Values.runtime.hera.tag }}
+  RUNTIME_PYTHON_IMAGE_3_10: {{ .Values.runtime.python.image }}:{{ .Values.runtime.python.tag3_10 }}
+  RUNTIME_PYTHON_IMAGE_3_11: {{ .Values.runtime.python.image }}:{{ .Values.runtime.python.tag3_11 }}
+  RUNTIME_PYTHON_IMAGE_3_12: {{ .Values.runtime.python.image }}:{{ .Values.runtime.python.tag3_12 }}
+  RUNTIME_PYTHON_IMAGE_3_13: {{ .Values.runtime.python.image }}:{{ .Values.runtime.python.tag3_13 }}
+  RUNTIME_HUGGINGFACE_SERVE_IMAGE: {{ .Values.runtime.huggingFace.image }}:{{ .Values.runtime.huggingFace.tag }}
+  RUNTIME_VLLM_SERVE_IMAGE: {{ .Values.runtime.vllm.default.image }}:{{ .Values.runtime.vllm.default.tag }}
+  RUNTIME_VLLM_SERVE_CPU_IMAGE: {{ .Values.runtime.vllm.cpu.image }}:{{ .Values.runtime.vllm.cpu.tag }}
+  RUNTIME_PYTHON_INSTALL_DEPENDENCIES: {{ .Values.runtime.python.installDependencies | quote }}
+{{- if .Values.solr.enabled }}
+  SOLR_URL: {{ .Values.solr.url }}
+  SOLR_COLLECTION: {{ .Values.solr.collection.name }}
+{{- end }}
+{{- if .Values.authentication.basic.enabled }}
+  DH_AUTH_BASIC_USER: {{ .Values.authentication.basic.username }}
+  DH_AUTH_BASIC_PASSWORD: {{ .Values.authentication.basic.password }}
+{{- end }}
+{{- if .Values.authentication.openId.enabled }}
+  {{- if .Values.authentication.openId.jwtAudience }}
+  DH_AUTH_JWT_ISSUER_URI: {{ .Values.authentication.openId.issuerUri }}
+  DH_AUTH_JWT_AUDIENCE: {{ .Values.authentication.openId.jwtAudience }}
+  {{- end }}
+  DH_AUTH_JWT_CLAIM: {{ .Values.authentication.openId.jwtClaim }}
+  DH_AUTH_OIDC_ISSUER_URI: {{ .Values.authentication.openId.issuerUri }}
+  DH_AUTH_OIDC_SCOPE: {{ .Values.authentication.openId.scope }}
+  DH_AUTH_JWT_USERNAME: {{ .Values.authentication.openId.jwtUsername }}
+{{- end }}
+{{- if .Values.global.ociRegistry.url }}
+  IMAGE_REGISTRY: {{ .Values.global.ociRegistry.url }}
+  BUILDER_IMAGE_PREFIX: {{ .Values.registry.kaniko.imagePrefix | default .Release.Namespace }}
+  IMAGE_REGISTRY_SECRET: {{ .Values.global.ociRegistry.secretName }}
+  {{- if eq .Values.builder.framework.name "kaniko" }}
+  BUILDER_FRAMEWORK: {{ .Values.builder.framework.name }}
+  KANIKO_IMAGE: {{ .Values.builder.framework.image }}
+  {{ if .Values.builder.framework.secret -}}KANIKO_SECRET: {{ .Values.builder.framework.secret }}{{- end }}
+  {{ if .Values.builder.framework.args -}}KANIKO_ARGS: {{ join "," .Values.builder.framework.args | quote }}{{- end }}
+  {{- else if eq .Values.builder.framework.name "buildkit" }}
+  BUILDER_FRAMEWORK: {{ .Values.builder.framework.name }}
+  BUILDKIT_IMAGE: {{ .Values.builder.framework.image }}
+  {{- if .Values.builder.framework.secret }}BUILDKIT_SECRET: {{ .Values.builder.framework.secret }}{{ end }}
+  BUILDKIT_COMMAND: {{ .Values.builder.framework.command }}
+  BUILDKIT_ARGS: {{ join "," .Values.builder.framework.args | quote }}
+  {{ if index .Values "builder" "framework" "client-secret" "name" -}}BUILDKIT_CLIENT_SECRET_NAME: {{ index .Values "builder" "framework" "client-secret" "name" }}{{- end }}
+  {{ if index .Values "builder" "framework" "client-secret" "mount-path" -}}BUILDKIT_CLIENT_SECRET_MOUNT_PATH: {{ index .Values "builder" "framework" "client-secret" "mount-path" }}{{- end }}
+  {{- end }}
+{{- end }}
+  DH_CORS_ORIGINS: {{ .Values.corsOrigin | quote }}
+{{- if and .Values.keystore.existingSecret.secretName .Values.keystore.keystorePath }}
+  JWT_KEYSTORE_PATH: "{{ .Values.keystore.keystorePath }}/{{ .Values.keystore.existingSecret.keyName }}"
+  JWT_KEYSTORE_KID: {{ .Values.keystore.keystoreKid | quote }}
+{{- else if and (not .Values.keystore.existingSecret.secretName) .Values.keystore.keystorePath }}
+  JWT_KEYSTORE_PATH: "{{ .Values.keystore.keystorePath }}/keystore.jwks"
+  JWT_KEYSTORE_KID: {{ .Values.keystore.keystoreKid | quote }}
+{{- end }}
+  JWT_ACCESS_TOKEN_DURATION: {{ .Values.coreTokens.accessTokenDuration | quote }}
+  JWT_REFRESH_TOKEN_DURATION: {{ .Values.coreTokens.refreshTokenDuration | quote }}
+  S3_CREDENTIALS_PROVIDER: {{ if .Values.s3.enabled }}"true"{{ else }}"false"{{ end }}
+{{- if .Values.s3.enabled }}
+  {{ if .Values.s3.credentials.policy}}S3_CREDENTIALS_POLICY: {{ .Values.s3.credentials.policy | quote }}{{ end }}
+  S3_SIGNATURE_VERSION: {{ .Values.s3.signatureVersion }}
+  S3_PATH_STYLE_ACCESS: {{ .Values.s3.pathStyleAccess | quote }}
+  {{ if .Values.s3.credentials.claimPrefix }}S3_CREDENTIALS_CLAIM_PREFIX: {{ .Values.s3.credentials.claimPrefix | quote }}{{ end }}
+  {{ if .Values.s3.credentials.roleArn }}S3_CREDENTIALS_ROLE_ARN: {{ .Values.s3.credentials.roleArn }}{{ end }}
+  AWS_DEFAULT_REGION: {{ .Values.s3.region }}
+  FILES_DEFAULT_STORE: s3://{{ .Values.s3.bucket }}
+  S3_ENDPOINT_URL: {{ .Values.s3.publicUrl }}
+  S3_BUCKET: {{ .Values.s3.bucket }}
+  S3_CREDENTIALS_DURATION: {{ .Values.s3.credentials.duration | quote }}
+{{- end }}
+{{- if .Values.templates }}
+  K8S_TEMPLATES: {{ include "core.templates" . | quote }}
+{{- end }}
+  K8S_INIT_IMAGE: "{{ .Values.initImage.builderTool.image }}:{{ .Values.initImage.builderTool.tag }}"
+  K8S_ENABLE_METRICS: {{ if not .Values.prometheus.enabled }}{{ .Values.additionalConfig.debug.enableMetrics | quote }}{{ else }}"false"{{ end }}
+  K8S_ENABLE_LOGS: {{ if not .Values.loki.enabled }}{{ .Values.additionalConfig.debug.enableLogs | quote }}{{ else }}"false"{{ end }}
+  K8S_SEC_DISABLE_ROOT: {{ .Values.additionalConfig.security.disableRoot | quote }}
+  K8S_RESOURCE_CPU_DEFAULT: {{ .Values.additionalConfig.resources.cpuReq | quote }}
+  K8S_RESOURCE_CPU_LIMIT: {{ .Values.additionalConfig.resources.cpuLim | quote }}
+  K8S_RESOURCE_MEM_DEFAULT: {{ .Values.additionalConfig.resources.memReq | quote }}
+  K8S_RESOURCE_MEM_LIMIT: {{ .Values.additionalConfig.resources.memLim | quote }}
+  K8S_RESOURCE_GPU_KEY: {{ .Values.additionalConfig.resources.gpuKey | quote }}
+  K8S_SERVICE_TYPE: {{ .Values.additionalConfig.service.type | quote }}
+  K8S_JOB_DEADLINE: {{ .Values.additionalConfig.job.deadline | quote }}
+  K8S_JOB_SUSPEND: {{ .Values.additionalConfig.job.jobSuspend | quote }}
+  K8S_IMAGE_PULL_POLICY: {{ .Values.additionalConfig.image.pullPolicy | quote }}
+  K8S_RESOURCE_EPHEMERAL_STORAGE_CLASS: {{ .Values.additionalConfig.ephemeralVolume.storageClass | quote }}
+  K8S_RESOURCE_EPHEMERAL_LIMIT: {{ .Values.additionalConfig.ephemeralVolume.limits | quote }}
+  K8S_RESOURCE_EPHEMERAL_DEFAULT: {{ .Values.additionalConfig.ephemeralVolume.requests | quote }}
+  K8S_RESOURCE_PVC_STORAGE_CLASS: {{ .Values.additionalConfig.persistenVolumeClaim.storageClass | quote }}
+  K8S_RESOURCE_PVC_LIMIT: {{ .Values.additionalConfig.persistenVolumeClaim.limits | quote }}
+  K8S_RESOURCE_PVC_DEFAULT: {{ .Values.additionalConfig.persistenVolumeClaim.requests | quote }}
+  K8S_RESOURCE_WORKFLOW_STORAGE_CLASS: {{ .Values.additionalConfig.workflow.volume.storageClassName | quote }}
+  K8S_RESOURCE_WORKFLOW_ACCESS_MODE: {{ .Values.additionalConfig.workflow.volume.accessMode | quote }}
+  K8S_CUSTOM_API_GROUPS: {{ .Values.additionalConfig.customApiGroups }}{{ if .Values.envoyGateway.genericGateway.enabled }},gateway.envoyproxy.io/v1alpha1,gateway.networking.k8s.io/v1{{ end }}{{ if .Values.envoyGateway.aiGateway.enabled }},aigateway.envoyproxy.io/v1alpha1{{ end }}
+{{- if .Values.kubeai.enabled }}
+  RUNTIME_KUBEAI_ENDPOINT: {{ printf "%s%s.%s.svc.cluster.local:%s" "http://" .Values.kubeai.serviceName .Release.Namespace .Values.kubeai.port | quote }}
+{{- end }}
+  ARGOWORKFLOWS_ARTIFACTS_CONFIGMAP: {{ .Values.argoWorkflow.configmap }}
+  ARGOWORKFLOWS_ARTIFACTS_KEY: {{ .Values.argoWorkflow.key }}
+  ARGOWORKFLOWS_SERVICE_ACCOUNT: {{ .Values.argoWorkflow.serviceAccount }}
+  ARGOWORKFLOWS_USER: {{ .Values.argoWorkflow.user | quote }}
+{{- with .Values.configmapAdditionalEnv }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- if .Values.sts.enabled }}
+  {{- if .Values.sts.databaseProvider.enabled }}
+  DB_CREDENTIALS_PROVIDER: {{ .Values.sts.databaseProvider.enabled | quote }}
+  DB_CREDENTIALS_DATABASE: {{ .Values.databaseProvider.database }}
+  DB_CREDENTIALS_ENDPOINT:  http://{{ .Release.Name }}-core-sts.{{ .Release.Namespace }}.svc.cluster.local:8080
+  DB_CREDENTIALS_CLAIM: {{ .Values.sts.jwt.claim }}
+  DB_CREDENTIALS_ROLE: {{ .Values.sts.credentials.roles }}
+  {{- end }}
+{{- end }}
+  LUCENE_INDEX_PATH: {{ if .Values.solr.enabled }}"false"{{ else }}{{ .Values.lucene.indexPath | quote }}{{ end }}
+  LUCENE_REINDEX: {{ .Values.lucene.reindex | quote }}
+{{- if .Values.envoyGateway.enabled }}
+  {{- if .Values.envoyGateway.genericGateway.enabled }}
+  GENERIC_GATEWAY_ENDPOINT: {{ .Values.envoyGateway.genericGateway.endpoint | quote }}
+  GENERIC_GATEWAY_NAME: {{ .Values.envoyGateway.genericGateway.name | quote }}
+  {{- end }}
+  {{- if .Values.envoyGateway.aiGateway.enabled }}
+  AI_GATEWAY_ENDPOINT: {{ .Values.envoyGateway.aiGateway.endpoint | quote }}
+  AI_GATEWAY_NAME: {{ .Values.envoyGateway.aiGateway.name | quote }}
+  {{- end }}
+{{- end }}
+{{- if .Values.loki.enabled }}
+  LOKI_URL: {{ .Values.loki.endpoint | quote }}
+  LOKI_MAPPING_NAMESPACE: {{ .Release.Namespace }}
+  LOKI_MAPPING_RUN: {{ .Values.loki.labels.run | quote }}
+  LOKI_MAPPING_PROJECT: {{ .Values.loki.labels.project | quote }}
+  {{ if .Values.loki.labels.user }}LOKI_MAPPING_USER: {{ .Values.loki.labels.user | quote }}{{ end }}
+  {{ if .Values.loki.labels.applicationName }}LOKI_MAPPING_APPLICATION_NAME: {{ .Values.loki.labels.applicationName | quote }}{{ end }}
+  {{ if .Values.loki.organizationId }}LOKI_ORG_ID: {{ .Values.loki.organizationId | quote }}{{ end }}
+  LOKI_MAP_WITH_PREFIX: {{ .Values.loki.mapWithPrefix | quote }}
+{{- end }}
+{{- if .Values.prometheus.enabled }}
+  PROMETHEUS_URL: {{ .Values.prometheus.endpoint | quote }}
+  PROMETHEUS_NAMESPACE: {{ .Values.prometheus.namespace | quote }}
+  PROMETHEUS_LAZY_FILTER: {{ .Values.prometheus.lazyFilter | quote }}
+  PROMETHEUS_RATE_INTERVAL_SECONDS: {{ .Values.prometheus.rateInterval | quote }}
+  PROMETHEUS_METRICS_CPU: {{ .Values.prometheus.metrics.cpu.name | quote }}
+  PROMETHEUS_METRICS_CPU_UNIT: {{ .Values.prometheus.metrics.cpu.unit | quote }}
+  PROMETHEUS_METRICS_CPU_LABEL: {{ .Values.prometheus.metrics.cpu.label | quote }}
+  PROMETHEUS_METRICS_CPU_GROUP_BY: {{ .Values.prometheus.metrics.cpu.groupBy | quote }}
+  PROMETHEUS_METRICS_CPU_OPERATION: {{ .Values.prometheus.metrics.cpu.operation | quote }}
+  PROMETHEUS_METRICS_CPU_WINDOW: {{ .Values.prometheus.metrics.cpu.window | quote }}
+  PROMETHEUS_METRICS_MEMORY: {{ .Values.prometheus.metrics.memory.name | quote }}
+  PROMETHEUS_METRICS_MEMORY_UNIT: {{ .Values.prometheus.metrics.memory.unit | quote }}
+  PROMETHEUS_METRICS_MEMORY_LABEL: {{ .Values.prometheus.metrics.memory.label | quote }}
+  PROMETHEUS_METRICS_MEMORY_GROUP_BY: {{ .Values.prometheus.metrics.memory.groupBy | quote }}
+  PROMETHEUS_METRICS_MEMORY_OPERATION: {{ .Values.prometheus.metrics.memory.operation | quote }}
+  PROMETHEUS_METRICS_MEMORY_WINDOW: {{ .Values.prometheus.metrics.memory.window | quote }}
+  PROMETHEUS_METRICS_DISK: {{ .Values.prometheus.metrics.disk.name | quote }}
+  PROMETHEUS_METRICS_DISK_UNIT: {{ .Values.prometheus.metrics.disk.unit | quote }}
+  PROMETHEUS_METRICS_DISK_LABEL: {{ .Values.prometheus.metrics.disk.label | quote }}
+  PROMETHEUS_METRICS_DISK_GROUP_BY: {{ .Values.prometheus.metrics.disk.groupBy | quote }}
+  PROMETHEUS_METRICS_DISK_OPERATION: {{ .Values.prometheus.metrics.disk.operation | quote }}
+  PROMETHEUS_METRICS_DISK_WINDOW: {{ .Values.prometheus.metrics.disk.window | quote }}
+  PROMETHEUS_METRICS_GPU: {{ .Values.prometheus.metrics.gpu.name | quote }}
+  PROMETHEUS_METRICS_GPU_UNIT: {{ .Values.prometheus.metrics.gpu.unit | quote }}
+  PROMETHEUS_METRICS_GPU_LABEL: {{ .Values.prometheus.metrics.gpu.label | quote }}
+  PROMETHEUS_METRICS_GPU_GROUP_BY: {{ .Values.prometheus.metrics.gpu.groupBy | quote }}
+  PROMETHEUS_METRICS_GPU_OPERATION: {{ .Values.prometheus.metrics.gpu.operation | quote }}
+  PROMETHEUS_METRICS_GPU_WINDOW: {{ .Values.prometheus.metrics.gpu.window | quote }}
+  PROMETHEUS_METRICS_GPU_MEMORY: {{ .Values.prometheus.metrics.gpuMemory.name | quote }}
+  PROMETHEUS_METRICS_GPU_MEMORY_UNIT: {{ .Values.prometheus.metrics.gpuMemory.unit | quote }}
+  PROMETHEUS_METRICS_GPU_MEMORY_LABEL: {{ .Values.prometheus.metrics.gpuMemory.label | quote }}
+  PROMETHEUS_METRICS_GPU_MEMORY_GROUP_BY: {{ .Values.prometheus.metrics.gpuMemory.groupBy | quote }}
+  PROMETHEUS_METRICS_GPU_MEMORY_OPERATION: {{ .Values.prometheus.metrics.gpuMemory.operation | quote }}
+  PROMETHEUS_METRICS_GPU_MEMORY_WINDOW: {{ .Values.prometheus.metrics.gpuMemory.window | quote }}
+  PROMETHEUS_METRICS_NETWORK_SEND: {{ .Values.prometheus.metrics.networkSend.name | quote }}
+  PROMETHEUS_METRICS_NETWORK_SEND_UNIT: {{ .Values.prometheus.metrics.networkSend.unit | quote }}
+  PROMETHEUS_METRICS_NETWORK_SEND_LABEL: {{ .Values.prometheus.metrics.networkSend.label | quote }}
+  PROMETHEUS_METRICS_NETWORK_SEND_GROUP_BY: {{ .Values.prometheus.metrics.networkSend.groupBy | quote }}
+  PROMETHEUS_METRICS_NETWORK_SEND_OPERATION: {{ .Values.prometheus.metrics.networkSend.operation | quote }}
+  PROMETHEUS_METRICS_NETWORK_SEND_WINDOW: {{ .Values.prometheus.metrics.networkSend.window | quote }}
+  PROMETHEUS_METRICS_NETWORK_RECEIVE: {{ .Values.prometheus.metrics.networkReceive.name | quote }}
+  PROMETHEUS_METRICS_NETWORK_RECEIVE_UNIT: {{ .Values.prometheus.metrics.networkReceive.unit | quote }}
+  PROMETHEUS_METRICS_NETWORK_RECEIVE_LABEL: {{ .Values.prometheus.metrics.networkReceive.label | quote }}
+  PROMETHEUS_METRICS_NETWORK_RECEIVE_GROUP_BY: {{ .Values.prometheus.metrics.networkReceive.groupBy | quote }}
+  PROMETHEUS_METRICS_NETWORK_RECEIVE_OPERATION: {{ .Values.prometheus.metrics.networkReceive.operation | quote }}
+  PROMETHEUS_METRICS_NETWORK_RECEIVE_WINDOW: {{ .Values.prometheus.metrics.networkReceive.window | quote }}
+  PROMETHEUS_MAPPING_RUN: {{ .Values.prometheus.labels.run | quote }}
+  PROMETHEUS_MAPPING_PROJECT: {{ .Values.prometheus.labels.project | quote }}
+  PROMETHEUS_MAPPING_USER: {{ .Values.prometheus.labels.user | quote }}
+  {{- if .Values.prometheus.labels.instance }}
+  PROMETHEUS_MAPPING_INSTANCE: {{ .Values.prometheus.labels.instance | quote }}
+  {{- end }}
+  PROMETHEUS_MAPPING_NAMESPACE: {{ .Values.prometheus.labels.namespace | quote }}
+{{- end }}

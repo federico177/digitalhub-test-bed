@@ -1,0 +1,42 @@
+apiVersion: v1
+data:
+  raspberrypi3.yaml: |
+    id: raspberrypi3
+    name: raspberrypi3
+    description: "Maximum available resources: cpu=6, RAM=1Gi"
+    tolerations:
+    - key: device
+      operator: Equal
+      value: raspberrypi3
+      effect: NoSchedule
+    node_selector:
+      - key: device
+        value: raspberrypi3
+  raspberrypi5.yaml: |
+    id: raspberrypi5
+    name: raspberrypi5
+    description: "Maximum available resources: cpu=4, RAM=16Gi"
+    tolerations:
+    - key: device
+      operator: Equal
+      value: raspberrypi5
+      effect: NoSchedule
+    node_selector:
+      - key: device
+        value: raspberrypi5
+  jetson-orin.yaml: |
+    id: jetson-orin
+    name: jetson-orin
+    description: "Maximum available resources: cpu=4, RAM=8Gi, GPU=1"
+    tolerations:
+    - key: device
+      operator: Equal
+      value: jetson-orin
+      effect: NoSchedule
+    node_selector:
+      - key: device
+        value: jetson-orin
+kind: ConfigMap
+metadata:
+  name: core-templates
+  namespace: digitalhub

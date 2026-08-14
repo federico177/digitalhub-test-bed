@@ -1,0 +1,11 @@
+.DS_STORE
+docker-compose/data/
+docker-compose/resources/dagster-pipelines/*/__pycache__*
+.env
+documentation/site
+tmp/
+**Chart.lock
+*/**/charts/*
+**/tmpcharts
+.cr-release-packages/
+**/example-template*

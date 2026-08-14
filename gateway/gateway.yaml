@@ -1,0 +1,27 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: testbed-gateway
+spec:
+  gatewayClassName: traefik
+  listeners:
+    - name: digitalhub-listener
+      hostname: "*.ipcei-testbed.internal"
+      protocol: HTTP
+      port: 8000
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: digitalhub
+    - name: coder-listener
+      hostname: "*.coder.ipcei-testbed.internal"
+      protocol: HTTP
+      port: 8000
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: digitalhub

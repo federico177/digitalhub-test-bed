@@ -1,0 +1,41 @@
+exclude: ^.git$
+repos:
+  - hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+    repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+  - hooks:
+      - id: helmlint
+    repo: https://github.com/gruntwork-io/pre-commit
+    rev: v0.1.30
+  - repo: https://github.com/ffais/yaml-sort
+    rev: v0.1.5
+    hooks:
+      - id: yaml-sort
+        files: (values\.yaml)$
+        args:
+          - sort
+          - --input-file=values.yaml
+          - --search-dir=charts/
+          - --space-top-key=true
+          - --custom-sort=global,enabled
+  - repo: https://github.com/norwoodj/helm-docs
+    rev: v1.14.2
+    hooks:
+      - id: helm-docs
+        args:
+          - --chart-search-root=charts
+          - --template-files=README.md.gotmpl
+          - --sort-values-order=file
+  - repo: https://github.com/norwoodj/helm-docs
+    rev: v1.14.2
+    hooks:
+      - id: helm-docs
+        alias: helm-docs-configuration
+        args:
+          - --chart-search-root=charts/digitalhub
+          - --template-files=CONFIGURATION.md.gotmpl
+          - --output-file=CONFIGURATION.md
+          - --sort-values-order=file
