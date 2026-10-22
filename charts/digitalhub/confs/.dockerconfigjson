@@ -1,1 +1,0 @@
-{"auths":{"{{ .Values.global.ociRegistry.url }}":{"username":"{{ .Values.global.ociRegistry.username }}","password":"{{ .Values.global.ociRegistry.password }}","email":"{{ .Values.global.ociRegistry.email }}","auth":"{{ include "digitalhub.registryAuth" . }}"}}}
